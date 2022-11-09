@@ -91,16 +91,24 @@ function CreateSurfaceData()
     let vertexList = [];
 
     //fig #3
-    const n = 2;
-    const t = 0;
-    const POINTS = 60
+    // const n = 2;
+    // const t = 0;
+    // const POINTS = 60
 
 
+     //fig #4
+     const n = 8;
+     const t = 0;
+     const POINTS = 30
 
     for (let j = 0; j <= POINTS; j++) {
 
         // fig #3
-        const r = j * 1 / POINTS + 0.25;
+        //const r = j * 1 / POINTS + 0.25;
+
+        // fig #4
+        const r = j * 0.6 / POINTS + 0.4;
+        
 
         for (let i = 0; i <= POINTS; i++) {
 
