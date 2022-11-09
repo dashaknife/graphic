@@ -90,9 +90,28 @@ function CreateSurfaceData()
 {
     let vertexList = [];
 
-    for (let i=0; i<360; i+=5) {
-        vertexList.push( Math.sin(deg2rad(i)), 1, Math.cos(deg2rad(i)) );
-        vertexList.push( Math.sin(deg2rad(i)), 0, Math.cos(deg2rad(i)) );
+    //fig #3
+    const n = 2;
+    const t = 0;
+    const POINTS = 60
+
+
+
+    for (let j = 0; j <= POINTS; j++) {
+
+        // fig #3
+        const r = j * 1 / POINTS + 0.25;
+
+        for (let i = 0; i <= POINTS; i++) {
+
+            const fi = i * 2 * Math.PI / POINTS;
+
+            const x = -(Math.cos(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.cos(t - (1 + 2 * n) * fi)) / (2 + 4 * n))
+            const y = -(Math.sin(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.sin(t - (1 + 2 * n) * fi)) / (2 + 4 * n))
+            const z = (Math.pow(r, n) * Math.cos(t - n * fi)) / n
+
+            vertexList.push(x, y, z);
+        }
     }
 
     return vertexList;

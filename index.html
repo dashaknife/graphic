@@ -1,31 +1,35 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>TrackballRotator Demo</title>
 
+        <script src="./Utils/trackball-rotator.js"></script>
+        <script src="./Utils/m4.js"></script>
+        <script src="./shader.gpu"></script>
+        <script src="./main.js"></script>
+    </head>
 
-<title>PA#1</title>
-<style>
-    body {
-        background-color: #EEEEEE;
-    }
-</style>
+    <body onload="init()">
 
-<script src="./Utils/trackball-rotator.js"></script>
-<script src="./Utils/m4.js"></script>
-<script src="./shader.gpu"></script>
-<script src="./main.js"></script>
+    <noscript>
+        <hr>
+        <h3>This page requires Javascript and a web browser that supports WebGL</h3>
+        <hr>
+    </noscript>
 
-</head>
-<body onload="init()">
+    <div id='info-block'>
 
-<h2>A Cube with "Trackball" Mouse Rotation</h2>
+        <h2>Richmond's Minimal Surface</h2>
 
-<p id="message">Drag your mouse on the cube to rotate it.<br>
-(On a touch screen, you can use your finger.)</p>
+        <p id="message" style="margin-bottom: 4px">Drag your mouse on the mesh to rotate it.<br>
+            (On a touch screen, you can use your finger.)</p>
+            <p>Fig.3</p>
+    </div>
 
+    <div id="canvas-holder">
+        <canvas width="600" height="500" id="webglcanvas"></canvas>
+    </div>
 
-<div id="canvas-holder">
-   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
-</div>
-
-
-</body></html>
+    </body>
+</html>
