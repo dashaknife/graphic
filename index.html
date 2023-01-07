@@ -21,11 +21,20 @@
     <div id='info-block'>
 
         <h2>Richmond's Minimal Surface</h2>
-
-        <p id="message" style="margin-bottom: 4px">Drag your mouse on the mesh to rotate it.<br>
-            (On a touch screen, you can use your finger.)</p>
-            <p>Fig.4</p>
+        <p id="message" style="margin-bottom: 4px">Calculation and graphics work</p>
     </div>
+
+    <div id="textureControls">
+        <label for="rAngle">Angle from -180 to 180:</label>
+        <input
+          id="rAngle"
+          type="range"
+          min="-180"
+          max="180"
+          step="1"
+          onchange="reDraw()"
+        />
+      </div>
 
     <div id="canvas-holder">
         <canvas width="600" height="500" id="webglcanvas"></canvas>
