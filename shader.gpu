@@ -1,14 +1,10 @@
-
-
 // Vertex shader
 const vertexShaderSource = `
 attribute vec3 vertex;
-<<<<<<< Updated upstream
 uniform mat4 ModelViewProjectionMatrix;
 
 void main() {
     gl_Position = ModelViewProjectionMatrix * vec4(vertex,1.0);
-=======
 attribute vec3 normal;
 attribute vec2 textureCoords;
 
@@ -81,7 +77,6 @@ void main() {
     vTextureCoords = vec2(vTranslatedBackMatrix);
 
     color = vec4(diffuse + ambient + specular, 1.0);
->>>>>>> Stashed changes
 }`;
 
 
@@ -93,14 +88,11 @@ const fragmentShaderSource = `
    precision mediump float;
 #endif
 
-<<<<<<< Updated upstream
 uniform vec4 color;
-=======
 varying vec4 color;
 varying vec2 vTextureCoords;
 uniform sampler2D textureU;
 
->>>>>>> Stashed changes
 void main() {
   vec4 texture = texture2D(textureU, vTextureCoords);
   gl_FragColor = texture * color;
