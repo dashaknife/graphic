@@ -4,11 +4,15 @@ let gl; // The webgl context.
 let surface; // A surface model
 let shProgram; // A shader program
 let spaceball; // A SimpleRotator object that lets the user rotate the view by mouse.
+let texture;
+let stereoCamera;
 
-let handlePosition = 0.0;
+let webCamTexture, webCamVideo, webCamBackground;
 
-let a = 6;
-let b = 20;
+let orientationEvent = { alpha: 0, beta: 0, gamma: 0 };
+
+let a = 0.5;
+let b = 1;
 
 const deg2rad = (angle) => {
   return (angle * Math.PI) / 180;
@@ -18,11 +22,19 @@ const deg2rad = (angle) => {
 function Model(name) {
   this.name = name;
   this.iVertexBuffer = gl.createBuffer();
+  this.iTextureBuffer = gl.createBuffer();
   this.count = 0;
 
-  this.BufferData = function (vertices) {
+  this.BufferData = function (vertices, textures) {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iTextureBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textures), gl.STREAM_DRAW);
+
+    gl.enableVertexAttribArray(shProgram.iTextureCoords);
+    gl.vertexAttribPointer(shProgram.iTextureCoords, 2, gl.FLOAT, false, 0, 0);
+
     this.count = vertices.length / 3;
   };
 
@@ -31,9 +43,9 @@ function Model(name) {
     gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(shProgram.iAttribVertex);
 
-    gl.vertexAttribPointer(shProgram.iNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(shProgram.iNormal);
-
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iTextureBuffer);
+    gl.vertexAttribPointer(shProgram.iTextureCoords, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(shProgram.iTextureCoords);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
   };
 }
@@ -42,118 +54,218 @@ function Model(name) {
 function ShaderProgram(name, program) {
   this.name = name;
   this.prog = program;
-
   // Location of the attribute variable in the shader program.
   this.iAttribVertex = -1;
-  // Location of the uniform specifying a color for the primitive.
-  this.iColor = -1;
   // Location of the uniform matrix representing the combined transformation.
   this.iModelViewProjectionMatrix = -1;
-
-  this.iNormal = -1;
-  this.iNormalMatrix = -1;
-
-  this.iAmbientColor = -1;
-  this.iDiffuseColor = -1;
-  this.iSpecularColor = -1;
-
-  this.iShininess = -1;
-
-  this.iLightPosition = -1;
-  this.iLightVec = -1;
+  this.iTextureCoords = -1;
+  this.iTextureU = -1;
 
   this.Use = function () {
     gl.useProgram(this.prog);
   };
 }
 
-/* Draws a colored cube, along with a set of coordinate axes.
- * (Note that the use of the above drawPrimitive function is not an efficient
- * way to draw with WebGL.  Here, the geometry is so simple that it doesn't matter.)
- */
+const leftFrustum = (stereoCamera) => {
+  const { eyeSeparation, convergence, aspectRatio, fov, near, far } =
+    stereoCamera;
+  const top = near * Math.tan(fov / 2);
+  const bottom = -top;
+
+  const a = aspectRatio * Math.tan(fov / 2) * convergence;
+  const b = a - eyeSeparation / 2;
+  const c = a + eyeSeparation / 2;
+
+  const left = (-b * near) / convergence;
+  const right = (c * near) / convergence;
+
+  return m4.orthographic(left, right, bottom, top, near, far);
+};
+
+const rightFrustum = (stereoCamera) => {
+  const { eyeSeparation, convergence, aspectRatio, fov, near, far } =
+    stereoCamera;
+  const top = near * Math.tan(fov / 2);
+  const bottom = -top;
+
+  const a = aspectRatio * Math.tan(fov / 2) * convergence;
+  const b = a - eyeSeparation / 2;
+  const c = a + eyeSeparation / 2;
+
+  const left = (-c * near) / convergence;
+  const right = (b * near) / convergence;
+  return m4.orthographic(left, right, bottom, top, near, far);
+};
+
 function draw() {
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  /* Set the values of the projection transformation */
-  let projection = m4.perspective(Math.PI / 10, 1, 8, 1000);
-
-  /* Get the view matrix from the SimpleRotator object.*/
   let modelView = spaceball.getViewMatrix();
-
-  let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-  let translateToPointZero = m4.translation(0,0,-10);
-
-  let matAccum0 = m4.multiply(rotateToPointZero, modelView);
-  let matAccum1 = m4.multiply(translateToPointZero, matAccum0);
-  const modelViewInverse = m4.inverse(matAccum1, new Float32Array(16));
-  const normalMatrix = m4.transpose(modelViewInverse, new Float32Array(16));
-
-  /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-  let modelViewProjection = m4.multiply(projection, matAccum1);
-
-  gl.uniformMatrix4fv(
-    shProgram.iModelViewProjectionMatrix,
-    false,
-    modelViewProjection
+  let rotateToPointZero = m4.axisRotation([0.707, 0.707, 0], 0);
+  let projection = m4.orthographic(0, 1, 0, 1, -1, 1);
+  let noRot = m4.multiply(
+    rotateToPointZero,
+    [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
   );
-  gl.uniformMatrix4fv(shProgram.iNormalMatrix, false, normalMatrix);
 
-  gl.uniform3fv(shProgram.iLightPosition, lightCoordinates());
-  gl.uniform3fv(shProgram.iLightDirection, [1, 0, 0]);
+  const stereoCamera = {
+    eyeSeparation: parseFloat(document.getElementById("eyeSeparation").value),
+    convergence: parseFloat(document.getElementById("convergence").value),
+    aspectRatio: gl.canvas.width / gl.canvas.height,
+    fov: parseFloat(document.getElementById("fov").value),
+    near: parseFloat(document.getElementById("near").value),
+    far: 100.0,
+  };
 
-  gl.uniform3fv(shProgram.iLightVec, new Float32Array(3));
+  let projectionLeft = leftFrustum(stereoCamera);
+  let projectionRight = rightFrustum(stereoCamera);
 
-  gl.uniform1f(shProgram.iShininess, 1.0);
+  let translateToLeft = m4.translation(-0.03, 0, -20);
+  let translateToRight = m4.translation(0.03, 0, -20);
 
-  gl.uniform3fv(shProgram.iAmbientColor, [0.5, 0, 0.4]);
-  gl.uniform3fv(shProgram.iDiffuseColor, [1.3, 1.0, 0.0]);
-  gl.uniform3fv(shProgram.iSpecularColor, [1.5, 1.0, 1.0]);
-  /* Draw the six faces of a cube, with different colors. */
-  gl.uniform4fv(shProgram.iColor, [1, 1, 0, 1]);
+  gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, noRot);
+  gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projection);
+  gl.bindTexture(gl.TEXTURE_2D, webCamTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    webCamVideo
+  );
+  webCamBackground?.Draw();
 
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+
+  if (
+    orientationEvent.alpha &&
+    orientationEvent.beta &&
+    orientationEvent.gamma
+  ) {
+    let rotationMatrix = getRotationMatrix(
+      orientationEvent.alpha,
+      orientationEvent.beta,
+      orientationEvent.gamma
+    );
+    let translationMatrix = m4.translation(0, 0, -1);
+
+    modelView = m4.multiply(rotationMatrix, translationMatrix);
+  }
+
+  // console.log(JSON.stringify(rotationMatrix));
+
+  let matAccum = m4.multiply(rotateToPointZero, modelView);
+
+  let matAccumLeft = m4.multiply(translateToLeft, matAccum);
+  let matAccumRight = m4.multiply(translateToRight, matAccum);
+
+  gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, matAccumLeft);
+  gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projectionLeft);
+  gl.colorMask(true, false, false, false);
   surface.Draw();
+
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+
+  gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, matAccumRight);
+  gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projectionRight);
+  gl.colorMask(false, true, true, false);
+  surface.Draw();
+
+  gl.colorMask(true, true, true, true);
 }
 
-function CreateSurfaceData()
-{
-    let vertexList = [];
+function getRotationMatrix(alpha, beta, gamma) {
+  var _x = beta ? deg2rad(beta) : 0; // beta value
+  var _y = gamma ? deg2rad(gamma) : 0; // gamma value
+  var _z = alpha ? deg2rad(alpha) : 0; // alpha value
 
-    //fig #3
+  var cX = Math.cos(_x);
+  var cY = Math.cos(_y);
+  var cZ = Math.cos(_z);
+  var sX = Math.sin(_x);
+  var sY = Math.sin(_y);
+  var sZ = Math.sin(_z);
+
+  //
+  // ZXY rotation matrix construction.
+  //
+
+  var m11 = cZ * cY - sZ * sX * sY;
+  var m12 = -cX * sZ;
+  var m13 = cY * sZ * sX + cZ * sY;
+
+  var m21 = cY * sZ + cZ * sX * sY;
+  var m22 = cZ * cX;
+  var m23 = sZ * sY - cZ * cY * sX;
+
+  var m31 = -cX * sY;
+  var m32 = sX;
+  var m33 = cX * cY;
+
+  return [m11, m12, m13, 0, m21, m22, m23, 0, m31, m32, m33, 0, 0, 0, 0, 1];
+}
+
+const step = (max, splines = 20) => {
+  return max / (splines - 1);
+};
+
+// const cos = (x) => {
+//   return Math.cos(x);
+// };
+
+// const sin = (x) => {
+//   return Math.sin(x);
+// };
+
+const CreateSurfaceData = () => {
+  let vertexList = [];
+    let textureList = [];
+    let splines = 20;
+
     const n = 2;
     const t = 0;
     const POINTS = 60
 
+    let maxU = Math.PI;
+    let maxV = 2 * Math.PI;
+    let stepU = step(maxU, splines);
+    let stepV = step(maxV, splines);
 
-     //fig #4
-    //  const n = 8;
-    //  const t = 0;
-    //  const POINTS = 30
+    let getU = (u) => {
+      return u / maxU;
+    };
+  
+    let getV = (v) => {
+      return v / maxV;
+    };
 
-    for (let j = 0; j <= POINTS; j++) {
+    for (let u = 0; u <= POINTS; u += stepU) {
 
-        // fig #3
-        // const r = j * 1 / POINTS + 0.25;
+      const r = u * 0.6 / POINTS + 0.4;
 
-        // fig #4
-        const r = j * 0.6 / POINTS + 0.4;
-      
+      for (let v = 0; v <= POINTS; v += stepV) {
 
-        for (let i = 0; i <= POINTS; i++) {
+        const fi = v * 10 * Math.PI / POINTS;
 
-            const fi = i * 10 * Math.PI / POINTS;
-
-            const x = -(Math.cos(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.cos(t - (1 + 2 * n) * fi)) / (2 + 4 * n))
-            const y = -(Math.sin(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.sin(t - (1 + 2 * n) * fi)) / (2 + 4 * n))
-            const z = (Math.pow(r, n) * Math.cos(t - n * fi)) / n
-
-            vertexList.push(x, y, z);
-        }
+        vertexList.push(
+          -(Math.cos(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.cos(t - (1 + 2 * n) * fi)) / (2 + 4 * n)),
+          -(Math.sin(t + fi) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.sin(t - (1 + 2 * n) * fi)) / (2 + 4 * n)),
+          (Math.pow(r, n) * Math.cos(t - n * fi)) / n
+        );
+        textureList.push(getU(u), getV(v));
+        vertexList.push(
+          -(Math.cos(t + fi + stepV) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.cos(t - (1 + 2 * n) * fi + stepU)) / (2 + 4 * n)),
+          -(Math.sin(t + fi + stepV) / (2 * r)) - ((Math.pow(r, (1 + 2 * n)) * Math.sin(t - (1 + 2 * n) * fi + stepU)) / (2 + 4 * n)),
+          (Math.pow(r, n) * Math.cos(t - n * fi + stepV)) / n
+        );
+        textureList.push(getU(u + stepU), getV(v + stepV));
+      }
     }
-
-    return vertexList;
-}
+    return { vertexList, textureList };
+};
 
 /* Initialize the WebGL context. Called from init() */
 function initGL() {
@@ -167,22 +279,26 @@ function initGL() {
     prog,
     "ModelViewProjectionMatrix"
   );
-  shProgram.iColor = gl.getUniformLocation(prog, "color");
+  shProgram.iModelViewMatrix = gl.getUniformLocation(prog, "ModelViewMatrix");
+  shProgram.iProjectionMatrix = gl.getUniformLocation(prog, "ProjectionMatrix");
 
-  shProgram.iNormal = gl.getAttribLocation(prog, "normal");
-  shProgram.iNormalMatrix = gl.getUniformLocation(prog, "normalMatrix");
-
-  shProgram.iAmbientColor = gl.getUniformLocation(prog, "ambientColor");
-  shProgram.iDiffuseColor = gl.getUniformLocation(prog, "diffuseColor");
-  shProgram.iSpecularColor = gl.getUniformLocation(prog, "specularColor");
-
-  shProgram.iShininess = gl.getUniformLocation(prog, "shininess");
-
-  shProgram.iLightPosition = gl.getUniformLocation(prog, "lightPosition");
-  shProgram.iLightVec = gl.getUniformLocation(prog, "lightVec");
+  shProgram.iTextureCoords = gl.getAttribLocation(prog, "textureCoords");
+  shProgram.iTextureU = gl.getUniformLocation(prog, "textureU");
 
   surface = new Model("Surface");
-  surface.BufferData(CreateSurfaceData());
+  const { vertexList, textureList } = CreateSurfaceData();
+  surface.BufferData(vertexList, textureList);
+
+  webCamBackground = new Model("Background");
+  webCamBackground.BufferData(
+    [
+      0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0,
+    ],
+    [1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1]
+  );
+
+  loadTexture();
 
   gl.enable(gl.DEPTH_TEST);
 }
@@ -243,6 +359,7 @@ const startDeviceOrientation = async () => {
 };
 
 
+
 /**
  * initialization function that will be called when the page has loaded
  */
@@ -251,10 +368,18 @@ function init() {
   try {
     canvas = document.getElementById("webglcanvas");
     gl = canvas.getContext("webgl");
+
+    webCamVideo = document.createElement("video");
+    webCamVideo.setAttribute("autoplay", true);
+    webCamTexture = createWebCamTexture(gl);
+
+    getWebcam().then((stream) => (webCamVideo.srcObject = stream));
+
     if (!gl) {
       throw "Browser does not support WebGL";
     }
   } catch (e) {
+    console.log(e);
     document.getElementById("canvas-holder").innerHTML =
       "<p>Sorry, could not get a WebGL graphics context.</p>";
     return;
@@ -262,6 +387,7 @@ function init() {
   try {
     initGL(); // initialize the WebGL graphics context
   } catch (e) {
+    console.log(e);
     document.getElementById("canvas-holder").innerHTML =
       "<p>Sorry, could not initialize the WebGL graphics context: " +
       e +
@@ -269,40 +395,69 @@ function init() {
     return;
   }
 
-  spaceball = new TrackballRotator(canvas, draw, 0);
+  const eyeSeparationInput = document.getElementById("eyeSeparation");
+  const convergenceInput = document.getElementById("convergence");
+  const fovInput = document.getElementById("fov");
+  const nearInput = document.getElementById("near");
 
-  draw();
+  eyeSeparationInput.addEventListener("input", draw);
+  convergenceInput.addEventListener("input", draw);
+  fovInput.addEventListener("input", draw);
+  nearInput.addEventListener("input", draw);
+
+  spaceball = new TrackballRotator(canvas, draw, 0);
+  
+  document.getElementById('orientation').addEventListener('change', async () => {
+    if (document.getElementById('orientation').checked) {
+      startDeviceOrientation();
+    }
+  });
+
+  reDraw();
 }
 
-window.addEventListener("keydown", function (event) {
-  switch (event.key) {
-    case "ArrowLeft":
-      left();
-      break;
-    case "ArrowRight":
-      right();
-      break;
-    default:
-      return;
-  }
-});
 
-const left = () => {
-  handlePosition -= 0.07;
-  reDraw();
-};
-
-const right = () => {
-  handlePosition += 0.07;
-  reDraw();
-};
-
-const lightCoordinates = () => {
-  let coord = Math.sin(handlePosition) * 1.2;
-  return [coord, -2, coord * coord];
-};
 
 const reDraw = () => {
-  surface.BufferData(CreateSurfaceData());
   draw();
+  window.requestAnimationFrame(reDraw);
+};
+
+const loadTexture = () => {
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.src =
+    "https://www.the3rdsequence.com/texturedb/download/200/texture/jpg/1024/stone+tile+grass-256x256.jpg";
+
+  image.addEventListener("load", () => {
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  });
+};
+
+const getWebcam = () => {
+  return new Promise((resolve) =>
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then((s) => resolve(s))
+  );
+};
+
+const createWebCamTexture = () => {
+  let textureID = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, textureID);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return textureID;
+};
+
+const handleOrientation = (event) => {
+  orientationEvent.alpha = event.alpha;
+  orientationEvent.beta = event.beta;
+  orientationEvent.gamma = event.gamma;
 };
