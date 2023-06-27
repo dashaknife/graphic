@@ -1,7 +1,6 @@
-# WebGL
+WebGL
+PA#2, variant #4 (Tangible interface)
 
-Project that accompanies VGGI credit module.
+Volos(Probotiuk) Daryna TR-23mp
 
-Visit vggi-kpi.blogspot.com for more information
-
-![Alt Text](https://github.com/dashaknife/graphic/blob/PA2/gif_pa2.gif)
+Richmond's Minimal Surface, Surface from previuos credit module, when I was variant #5
