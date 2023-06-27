@@ -218,6 +218,31 @@ function createProgram(gl, vShader, fShader) {
   return prog;
 }
 
+const startDeviceOrientation = async () => {
+  if (
+    typeof DeviceOrientationEvent?.requestPermission !== 'function' ||
+    typeof DeviceOrientationEvent === 'undefined'
+  )
+    throw new Error('DeviceOrientationEvent === undefined');
+
+  try {
+    const permission = await DeviceOrientationEvent.requestPermission();
+    if (permission === 'granted') {
+      orient = (event) => {
+        const { alpha, beta, gamma } = event;
+        orientationEvent.alpha = alpha;
+        orientationEvent.beta = beta;
+        orientationEvent.gamma = gamma;
+      };
+      window.addEventListener('deviceorientation', orient, true);
+    }
+  } catch (e) {
+    alert(e);
+    console.error('e', e);
+  }
+};
+
+
 /**
  * initialization function that will be called when the page has loaded
  */
