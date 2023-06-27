@@ -334,16 +334,21 @@ function createProgram(gl, vShader, fShader) {
   return prog;
 }
 
-function requestDeviceOrientation () {
+async function requestDeviceOrientation () {
+
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission()
     .then(permissionState => {
-    if (permissionState === 'granted') {
-      window.addEventListener('deviceorientation', () => {});
-    }
+      alert(permissionState)
+      if (permissionState === 'granted') {
+        window.addEventListener('deviceorientation', (event) => handleOrientation(event), true);
+      } else {
+      }
     })
-    .catch(console.error);
-    } else {
+    .catch( (event) => {
+      alert(event)
+    });
+  } else {
     // handle regular non iOS 13+ devices
     console.log ("not iOS");
   }
