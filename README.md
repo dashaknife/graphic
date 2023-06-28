@@ -1,7 +1,7 @@
-# WebGL
+WebGL
+Calculation&graphics work (Spatial audio), variant #4
 
-Project that accompanies VGGI credit module.
+Volos(Probotiuk) Daryna TR-23mp
 
-Volos Daryna TR-23mp Calculation and graphics work
+Richmond's Minimal Surface, Surface from previuos credit module, when I was variant #5
 
-![Alt Text](https://github.com/dashaknife/graphic/blob/CGW/screen_CGW.gif)
